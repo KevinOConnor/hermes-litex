@@ -1,0 +1,72 @@
+# This is a dockerfile for installing and running the Intel Quartus
+# fpga design tool, the LiteX framework, and openFPGALoader.
+#
+# Prior to building this docker container, one must obtain the Quartus
+# software and place it in the same directory as this docker file.
+# For example:
+#  wget 'https://downloads.intel.com/akdlm/software/acdsinst/25.1std/1129/ib_installers/QuartusLiteSetup-25.1std.0.1129-linux.run'
+#  wget 'https://downloads.intel.com/akdlm/software/acdsinst/25.1std/1129/ib_installers/cyclone-25.1std.0.1129.qdz'
+#
+# Then build this docker container with something like:
+#  docker build -t qlitex -f qlitex.docker
+
+FROM ubuntu:24.04
+
+# Install the Quartus software
+ARG QUARTUS_SETUP_FILE=QuartusLiteSetup-25.1std.0.1129-linux.run
+ARG QUARTUS_DEF_FILE=cyclone-25.1std.0.1129.qdz
+ADD ${QUARTUS_SETUP_FILE} ${QUARTUS_DEF_FILE} /quartus_install/
+
+# Define items we don't need in the image. By default, we turn off
+# help and update to keep the image small. The following are valid
+# options: quartus quartus_help devinfo arria_lite cyclone cyclone10lp
+# cyclonev max max10 quartus_update
+ARG QUARTUS_DISABLED="quartus_help,quartus_update"
+
+# Run the Quartus installer and cleanup the install directory when done
+RUN cd /quartus_install && chmod +x $QUARTUS_SETUP_FILE \
+    && ./${QUARTUS_SETUP_FILE} --mode unattended --accept_eula 1 --installdir /quartus --disable-components ${QUARTUS_DISABLED}\
+    && rm -rf /quartus_install
+
+# Install packages necessary for Quartus to work
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    libpng-dev \
+    libfreetype6 \
+    libsm6 \
+    libxrender1 \
+    libfontconfig1 \
+    libxext6 \
+# for installing locales
+    locales \
+# java needed for platform designer / qsys
+    default-jre \
+# needed for normal init environment
+    dumb-init \
+# Generate the en_US locale
+    && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
+    && locale-gen en_US.UTF-8 \
+    && update-locale LANG=en_US.UTF-8
+
+# Install LiteX
+ARG LITEX_TAG=2026.08
+RUN cd /root/ \
+    && apt-get install -y gcc-riscv64-unknown-elf build-essential git make cmake \
+        python3 python3-dev python-is-python3 virtualenv wget \
+        openfpgaloader \
+    && wget "https://raw.githubusercontent.com/enjoy-digital/litex/${LITEX_TAG}/litex_setup.py" \
+    && chmod +x /root/litex_setup.py \
+    && virtualenv /litex-venv \
+    && /litex-venv/bin/pip install setuptools meson \
+    && /litex-venv/bin/python3 /root/litex_setup.py --tag=${LITEX_TAG} --init --install \
+    && /litex-venv/bin/python3 /root/litex_setup.py --gcc=riscv \
+    && rm /root/litex_setup.py
+
+# Set environment so Quartus is in the path
+ENV PATH="${PATH}:/quartus/quartus/bin"
+
+# Force en_US.UTF8
+ENV LC_ALL="en_US.UTF-8"
+
+# Use dumb-init as an entry point (for proper Unix signal handling)
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]

@@ -1,0 +1,6 @@
+# Ignore main build directory
+build/
+# Ignore Quartus downloads in scrpits directory
+scripts/Quartus*.tar
+scripts/Quartus*.run
+scripts/*.qdz
