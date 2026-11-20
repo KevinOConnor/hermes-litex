@@ -18,7 +18,7 @@ _io = [
         IOStandard("2.5-V")
     ),
     ("eth", 0,
-        Subsignal("rst_n",   Pins("49")),
+        #Subsignal("rst_n",   Pins("49")),
         Subsignal("mdio",    Pins("50")),
         Subsignal("mdc",     Pins("51")),
         Subsignal("rx_ctl",  Pins("54")),
